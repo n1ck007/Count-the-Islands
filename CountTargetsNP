@@ -1,0 +1,243 @@
+// Nicholas Pratt
+// COSC 2436
+// Program Set #
+// References
+//	https://www.techiedelight.com/count-the-number-of-islands/
+// 
+
+
+#include<iostream>
+#include<fstream>
+#include<sstream>
+#include<string>
+#include<vector>
+#include<queue>
+using namespace std;
+
+// used to make selecting colors simpler
+string CSIcode(string prefix, string SGRcode) {
+	return "\033[" + prefix + SGRcode + "m";
+}
+
+// prints a matrix to the console
+void printMat(vector<vector<int>> mat, bool useColor) {
+	for (int i = 0; i < mat.size(); i++) {
+		for (int j = 0; j < mat.size(); j++) {
+
+			if (useColor) {
+
+				if (mat[i][j] % 7 == 0 && mat[i][j] != 0) {
+					// 0 is coded to black so there would be no color. Use 10 and 0 for grey instead.
+					cout << CSIcode("10","0");
+
+				}
+				else {
+					// set color code. Use mod 7 because the color code shouldn't exceed 6.
+					cout << CSIcode("4", to_string(mat[i][j] % 7));
+				}
+
+				
+			}
+			
+			// output matrix contents
+			cout << mat[i][j] << " ";
+
+		}
+		cout << "\033[0m" << endl;
+	}
+	cout << endl;
+}
+
+// processes the user's response to a yes or no question
+bool getYesNo() {
+	string str;
+	getline(cin, str);
+
+	// must test for a zero size first or else the for loops be out_of_range
+	if (str.size() == 0) {
+		cout << "Input cannot be understood. Please try again: ";
+		return getYesNo();
+	}
+
+	// erase whitespace
+	for (size_t i = str.size() - 1; i > 0; i--) {
+		if (str.at(i) == ' ') {
+			str.erase(i, 1);
+		}
+	}
+
+	// make lowercase
+	for (size_t i = 0; i < str.size(); i++) {
+		str.at(i) = tolower(str.at(i));
+	}
+
+
+	if ( str == "y" || str == "yes" ) {
+		return true;
+	}
+	else if ( str == "n" || str == "no" ) {
+		return false;
+	}
+	else {
+		cout << "Input cannot be understood. Please try again: ";
+		return getYesNo();
+	}
+}
+
+// returns false if the given cell is out_of_range, visited, or 0.
+bool isValid(vector<vector<int>> mat, vector<vector<int>> visited, int x, int y) {
+	// the matrix is square so we x and y have the same upper bound
+
+	// should only return true if all the following are true
+	return 0 <= x && x < mat.size()	// if x is within range
+		&& 0 <= y && y < mat.size()	// if y is within range
+		&& mat[x][y]				// if cell has a 0 it will be read as false 
+		&& !visited[x][y];			// if cell has a 1 it will be read as false 
+	
+}
+
+// breadth first search of a matrix where i and j are the starting coordinates
+void BFS(vector<vector<int>> &mat, vector<vector<int>> & visited, int i, int j, int blobNum) {
+	// if the starting position is in a blob this function will discover the rest of the blob
+	// if the starting position is NOT in a blob this function will do essentially nothing
+	
+	queue<pair<int,int>> q;			// a queue of coordinates
+	pair<int,int> start(i, j);		// coordinates of the starting position
+	int xOffset[] = { -1, -1, -1, 0, 1, 0, 1, 1 }; // the relative coordinates for each of the 8 surrounding cells
+	int yOffset[] = { -1, 1, 0, -1, -1, 1, 0, 1 };
+	
+
+	// instead of pushing nodes of a graph of linked list into the queue
+	// we treat each pair of coordinates as if it was a kind of "node"
+	// by making them into one "pair" object
+	q.push(start);
+
+	// mark the starting cell as visited and set its blob number
+	visited[i][j] = 1;
+	mat[i][j] = blobNum; 
+
+
+	// begin the BFS and loop until queue is empty
+	while (!q.empty()) {
+		
+		// pop front node and process it
+		int x = q.front().first;
+		int y = q.front().second;
+		q.pop();
+
+		// for each of the 8 possible surrounding neighbors 
+		for (int k = 0; k < 8; k++) {
+
+			// if neighbor is valid
+			if ( isValid(mat, visited, x + xOffset[k], y + yOffset[k]) ) {
+				// mark as visited and push
+				visited[ x + xOffset[k] ][ y + yOffset[k] ] = 1;
+				pair<int, int> temp(x + xOffset[k], y + yOffset[k]);
+				q.push(temp);
+
+				// the cell contains a 1, relabel that cell with the current blob number
+				if ( mat[x + xOffset[k]][y + yOffset[k]] ) {
+					mat[x + xOffset[k]][y + yOffset[k]] = blobNum;
+				}
+
+
+			}
+
+		}
+
+	}
+}
+
+
+int main() {
+
+	fstream file;
+	string fileName;
+	string line;
+	stringstream ss;
+	bool useColor = false;
+	bool runAgain = true;
+	int matSize;
+	vector<vector<int>> mat;
+	vector<vector<int>> visited;
+	
+	//while (runAgain) {
+
+
+
+		cout << "Enter file name: ";
+		//getline(cin, filename);
+		fileName = "targets.txt"; cout << fileName << endl;
+
+		cout << "Would you like to use color (Y/N)? ";
+		useColor = getYesNo();
+		cout << endl;
+
+		// open file
+		file.open(fileName, ios::in);
+		if (file.is_open()) {
+
+			// read in the matrix size
+			getline(file, line);
+			matSize = stoi(line);
+
+			// populate matrix
+			for (int i = 0; i < matSize; i++) {
+				getline(file, line);
+				ss << line;
+				string tempStr;
+				vector<int> tempVec;
+
+				for (int j = 0; j < matSize; j++) {
+					ss >> tempStr;
+					tempVec.push_back(stoi(tempStr));
+
+				}
+				mat.push_back(tempVec);
+			}
+
+			// construct the "visited" matrix
+			for (int i = 0; i < matSize; i++) {
+				// fill the matrix with zeros and use it to keep track of the cells you have explored
+				vector<int> dummy;
+				dummy.assign(matSize, 0);
+				visited.push_back(dummy);
+			}
+
+
+		}// if open
+		file.close();
+
+		// Perform a BFS throughout the whole matrix
+		int blobs = 0;
+		if (mat.size() == 0) {
+			// base case
+			printMat(mat, useColor);
+			cout << "No Blobs" << endl;
+		}
+		else {
+			for (int i = 0; i < matSize; i++) {
+				for (int j = 0; j < matSize; j++) {
+					// perform a BFS from each unvisited cell and increment blob count
+					if (mat[i][j] && visited[i][j] == 0) {
+						BFS(mat, visited, i, j, blobs + 1);
+						blobs++;
+					}
+				}
+			}
+			printMat(mat, useColor);
+			cout << "There are " << blobs << " blobs in the photograph." << endl << endl;
+		}
+
+
+
+		//cout << "Would you like to run this program again (Y/N)? ";
+		//runAgain = getYesNo();
+		//cout << endl;
+	//}
+
+
+	
+
+	return 0;
+}
